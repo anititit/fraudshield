@@ -16,7 +16,7 @@ REST API de detecção e análise de fraudes em transações financeiras, constr
 git clone https://github.com/anititit/fraudshield.git
 cd fraudshield
 npm install
-cp .env.example .env
+cp .env.example .env   # configure DATABASE_URL com sua string PostgreSQL
 npx prisma migrate deploy
 npm run dev
 ```
@@ -30,7 +30,8 @@ npm run dev
 | `JWT_SECRET` | Chave secreta do JWT | — |
 | `JWT_EXPIRES_IN` | Expiração do access token | `1h` |
 | `REFRESH_TOKEN_EXPIRES_DAYS` | Expiração do refresh token | `7` |
-| `DATABASE_URL` | URL do banco de dados | `file:./prisma/dev.db` |
+| `DATABASE_URL` | Connection string PostgreSQL | `postgresql://user:pass@localhost:5432/fraudshield` |
+| `TEST_DATABASE_URL` | Connection string para testes (opcional) | mesmo formato |
 
 ## Endpoints
 
@@ -153,10 +154,11 @@ Todos aceitam `?startDate=&endDate=` para filtrar por período.
 ## Testes
 
 ```bash
-npm test
+# necessita PostgreSQL rodando localmente (ou defina TEST_DATABASE_URL)
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/fraudshield_test" npm test
 ```
 
-30 testes de integração cobrindo auth, análise de fraude e dashboard. O banco de testes (`prisma/test.db`) é criado e limpo automaticamente.
+30 testes de integração cobrindo auth, análise de fraude e dashboard. Os dados são limpos automaticamente entre cada teste.
 
 ## Estrutura do projeto
 

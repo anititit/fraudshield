@@ -33,7 +33,7 @@ async function analyzeTransaction(transaction, requesterId) {
       deviceId: deviceId || null,
       riskScore,
       riskLevel: riskScore >= 70 ? 'HIGH' : riskScore >= 40 ? 'MEDIUM' : 'LOW',
-      flags: JSON.stringify(flags),
+      flags,
       analyzedBy: requesterId || null,
     },
   });
@@ -74,7 +74,7 @@ async function listReports({ page = 1, limit = 20, riskLevel, analyzedBy, startD
 }
 
 function formatReport(report) {
-  return { ...report, flags: JSON.parse(report.flags) };
+  return report;
 }
 
 module.exports = { analyzeTransaction, getReport, listReports };
