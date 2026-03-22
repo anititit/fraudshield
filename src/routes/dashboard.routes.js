@@ -1,0 +1,15 @@
+const { Router } = require('express');
+const dashboardController = require('../controllers/dashboard.controller');
+
+const router = Router();
+
+// GET /api/dashboard/summary?startDate=&endDate=
+router.get('/summary', dashboardController.summary);
+
+// GET /api/dashboard/by-user?startDate=&endDate=
+router.get('/by-user', dashboardController.byUser);
+
+// GET /api/dashboard/timeline?startDate=&endDate=
+router.get('/timeline', dashboardController.timeline);
+
+module.exports = router;

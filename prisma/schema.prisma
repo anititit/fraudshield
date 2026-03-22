@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+
+  reports       FraudReport[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+}
+
+model FraudReport {
+  id         String   @id @default(uuid())
+  amount     Float
+  userId     String?
+  location   String?
+  deviceId   String?
+  riskScore  Int
+  riskLevel  String
+  flags      String
+  analyzedAt DateTime @default(now())
+
+  analyzedBy     String?
+  analyzedByUser User?   @relation(fields: [analyzedBy], references: [id])
+}
