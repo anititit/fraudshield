@@ -31,6 +31,7 @@ model FraudReport {
   id         String   @id @default(uuid())
   amount     Float
   userId     String?
+  cpf        String?  // Brazilian CPF (stored as 11 raw digits, no mask)
   location   String?
   deviceId   String?
   riskScore  Int

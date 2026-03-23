@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const cpfValidator = require('../validators/cpf');
 const {
   VELOCITY_WINDOW_MINUTES,
   VELOCITY_MAX_TRANSACTIONS,
@@ -6,7 +7,7 @@ const {
 } = require('../config/fraudRules');
 
 async function analyzeTransaction(transaction, requesterId) {
-  const { amount, userId, location, deviceId } = transaction;
+  const { amount, userId, cpf, location, deviceId } = transaction;
 
   const flags = [];
   let riskScore = 0;
@@ -35,10 +36,7 @@ async function analyzeTransaction(transaction, requesterId) {
   if (deviceId) {
     const windowStart = new Date(Date.now() - VELOCITY_WINDOW_MINUTES * 60 * 1000);
     const recentCount = await prisma.fraudReport.count({
-      where: {
-        deviceId,
-        analyzedAt: { gte: windowStart },
-      },
+      where: { deviceId, analyzedAt: { gte: windowStart } },
     });
     if (recentCount >= VELOCITY_MAX_TRANSACTIONS) {
       flags.push('VELOCITY_EXCEEDED');
@@ -52,12 +50,38 @@ async function analyzeTransaction(transaction, requesterId) {
     riskScore += 30;
   }
 
+  // Rule 5: CPF validation
+  let cpfDigits = null;
+  if (cpf) {
+    const result = cpfValidator.validate(cpf);
+    cpfDigits = result.digits; // store clean digits (no mask)
+
+    if (!result.valid) {
+      // Map each issue code to a flag + score
+      if (result.issues.includes('INVALID_FORMAT')) {
+        flags.push('INVALID_CPF_FORMAT');
+        riskScore += 50;
+      } else if (result.issues.includes('BLOCKED_SEQUENCE')) {
+        flags.push('INVALID_CPF_DIGITS'); // all-same is also a digit issue
+        riskScore += 50;
+      } else if (result.issues.includes('INVALID_CHECK_DIGITS')) {
+        flags.push('INVALID_CPF_DIGITS');
+        riskScore += 50;
+      }
+    } else if (result.suspiciousPatterns.length > 0) {
+      // Valid CPF but risky pattern (sequential, low-entropy)
+      flags.push('SUSPICIOUS_CPF');
+      riskScore += 25;
+    }
+  }
+
   riskScore = Math.min(riskScore, 100);
 
   const report = await prisma.fraudReport.create({
     data: {
       amount,
       userId: userId || null,
+      cpf: cpfDigits,
       location: location || null,
       deviceId: deviceId || null,
       riskScore,

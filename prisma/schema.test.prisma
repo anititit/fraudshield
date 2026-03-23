@@ -32,6 +32,7 @@ model FraudReport {
   id         String   @id @default(uuid())
   amount     Float
   userId     String?
+  cpf        String?
   location   String?
   deviceId   String?
   riskScore  Int
