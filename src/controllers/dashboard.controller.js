@@ -30,4 +30,14 @@ async function timeline(req, res, next) {
   }
 }
 
-module.exports = { summary, byUser, timeline };
+async function all(req, res, next) {
+  try {
+    const { startDate, endDate } = req.query;
+    const data = await dashboardService.getAll({ startDate, endDate });
+    res.status(200).json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { summary, byUser, timeline, all };

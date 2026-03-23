@@ -97,4 +97,16 @@ function _dateFilter(startDate, endDate) {
   return { analyzedAt };
 }
 
-module.exports = { getSummary, getByUser, getTimeline };
+/**
+ * Consolidated: summary + by-user + timeline in a single call.
+ */
+async function getAll({ startDate, endDate } = {}) {
+  const [summary, byUser, timeline] = await Promise.all([
+    getSummary({ startDate, endDate }),
+    getByUser({ startDate, endDate }),
+    getTimeline({ startDate, endDate }),
+  ]);
+  return { summary, byUser, timeline };
+}
+
+module.exports = { getSummary, getByUser, getTimeline, getAll };

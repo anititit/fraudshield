@@ -78,6 +78,106 @@ describe('Fraud — POST /api/fraud/analyze', () => {
   });
 });
 
+describe('Fraud — VELOCITY_EXCEEDED rule', () => {
+  let token;
+  beforeEach(async () => { token = await registerAndLogin('velocity@test.com'); });
+
+  it('flags VELOCITY_EXCEEDED after 3 transactions from the same device within the window', async () => {
+    const tx = { amount: 50, userId: 'u1', location: 'BR', deviceId: 'device-vel-1' };
+
+    // First 3 transactions — should NOT trigger velocity (threshold is >= 3 existing)
+    for (let i = 0; i < 3; i++) {
+      await request(app)
+        .post('/api/fraud/analyze')
+        .set('Authorization', `Bearer ${token}`)
+        .send(tx);
+    }
+
+    // 4th transaction — now there are 3 existing → VELOCITY_EXCEEDED
+    const res = await request(app)
+      .post('/api/fraud/analyze')
+      .set('Authorization', `Bearer ${token}`)
+      .send(tx);
+
+    expect(res.status).toBe(200);
+    expect(res.body.flags).toContain('VELOCITY_EXCEEDED');
+    expect(res.body.riskScore).toBeGreaterThanOrEqual(40);
+  });
+
+  it('does NOT flag VELOCITY_EXCEEDED for different devices', async () => {
+    for (let i = 0; i < 3; i++) {
+      await request(app)
+        .post('/api/fraud/analyze')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ amount: 50, userId: 'u1', location: 'BR', deviceId: `device-diff-${i}` });
+    }
+
+    const res = await request(app)
+      .post('/api/fraud/analyze')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 50, userId: 'u1', location: 'BR', deviceId: 'device-new' });
+
+    expect(res.body.flags).not.toContain('VELOCITY_EXCEEDED');
+  });
+});
+
+describe('Fraud — SUSPICIOUS_LOCATION rule', () => {
+  let token;
+  beforeEach(async () => { token = await registerAndLogin('location@test.com'); });
+
+  it('flags SUSPICIOUS_LOCATION for a high-risk country', async () => {
+    const res = await request(app)
+      .post('/api/fraud/analyze')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 50, userId: 'u1', location: 'KP', deviceId: 'd1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.flags).toContain('SUSPICIOUS_LOCATION');
+    expect(res.body.riskScore).toBeGreaterThanOrEqual(30);
+  });
+
+  it('does NOT flag SUSPICIOUS_LOCATION for a safe country', async () => {
+    const res = await request(app)
+      .post('/api/fraud/analyze')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 50, userId: 'u1', location: 'BR', deviceId: 'd1' });
+
+    expect(res.body.flags).not.toContain('SUSPICIOUS_LOCATION');
+  });
+
+  it('is case-insensitive for country codes', async () => {
+    const res = await request(app)
+      .post('/api/fraud/analyze')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 50, userId: 'u1', location: 'ir', deviceId: 'd1' });
+
+    expect(res.body.flags).toContain('SUSPICIOUS_LOCATION');
+  });
+});
+
+describe('Fraud — POST /api/transactions (alias)', () => {
+  let token;
+  beforeEach(async () => { token = await registerAndLogin('tx-alias@test.com'); });
+
+  it('analyzes a transaction and returns a fraud report', async () => {
+    const res = await request(app)
+      .post('/api/transactions')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 500, userId: 'u1', location: 'BR', deviceId: 'd1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBeDefined();
+    expect(res.body.riskLevel).toBe('LOW');
+  });
+
+  it('returns 401 without token', async () => {
+    const res = await request(app)
+      .post('/api/transactions')
+      .send({ amount: 100 });
+    expect(res.status).toBe(401);
+  });
+});
+
 describe('Fraud — GET /api/fraud/report/:id', () => {
   let token;
   beforeEach(async () => { token = await registerAndLogin(); });

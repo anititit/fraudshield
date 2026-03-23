@@ -127,3 +127,46 @@ describe('Dashboard — GET /api/dashboard/timeline', () => {
     expect(res.body).toEqual([]);
   });
 });
+
+describe('Dashboard — GET /api/dashboard (consolidated)', () => {
+  let token;
+
+  beforeEach(async () => {
+    ({ token } = await registerAndLogin('consolidated@test.com'));
+    await analyze(token, { amount: 25000 });
+    await analyze(token, { amount: 50, userId: 'u1', location: 'BR', deviceId: 'd1' });
+  });
+
+  it('returns summary, byUser and timeline in a single response', async () => {
+    const res = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.summary).toBeDefined();
+    expect(res.body.byUser).toBeDefined();
+    expect(res.body.timeline).toBeDefined();
+
+    expect(res.body.summary.total).toBe(2);
+    expect(Array.isArray(res.body.byUser)).toBe(true);
+    expect(Array.isArray(res.body.timeline)).toBe(true);
+  });
+
+  it('respects date filters across all sections', async () => {
+    const future = new Date(Date.now() + 86400000 * 2).toISOString();
+    const farFuture = new Date(Date.now() + 86400000 * 3).toISOString();
+
+    const res = await request(app)
+      .get(`/api/dashboard?startDate=${future}&endDate=${farFuture}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.body.summary.total).toBe(0);
+    expect(res.body.byUser).toEqual([]);
+    expect(res.body.timeline).toEqual([]);
+  });
+
+  it('returns 401 without token', async () => {
+    const res = await request(app).get('/api/dashboard');
+    expect(res.status).toBe(401);
+  });
+});

@@ -29,7 +29,7 @@ CREATE TABLE "FraudReport" (
     "deviceId" TEXT,
     "riskScore" INTEGER NOT NULL,
     "riskLevel" TEXT NOT NULL,
-    "flags" JSONB NOT NULL,
+    "flags" TEXT NOT NULL,
     "analyzedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "analyzedBy" TEXT,
 

@@ -5,3 +5,5 @@ dist/
 *.db-journal
 prisma/prisma/
 src/generated/
+prisma/test.db
+prisma/test.db-journal

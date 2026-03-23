@@ -3,6 +3,9 @@ const dashboardController = require('../controllers/dashboard.controller');
 
 const router = Router();
 
+// GET /api/dashboard — consolidated: summary + by-user + timeline
+router.get('/', dashboardController.all);
+
 // GET /api/dashboard/summary?startDate=&endDate=
 router.get('/summary', dashboardController.summary);
 

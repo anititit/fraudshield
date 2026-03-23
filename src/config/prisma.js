@@ -1,4 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } =
+  process.env.NODE_ENV === 'test'
+    ? require('../generated/prisma-test')
+    : require('@prisma/client');
 
 const prisma = new PrismaClient();
 

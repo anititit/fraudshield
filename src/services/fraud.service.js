@@ -1,4 +1,9 @@
 const prisma = require('../config/prisma');
+const {
+  VELOCITY_WINDOW_MINUTES,
+  VELOCITY_MAX_TRANSACTIONS,
+  HIGH_RISK_COUNTRIES,
+} = require('../config/fraudRules');
 
 async function analyzeTransaction(transaction, requesterId) {
   const { amount, userId, location, deviceId } = transaction;
@@ -6,10 +11,13 @@ async function analyzeTransaction(transaction, requesterId) {
   const flags = [];
   let riskScore = 0;
 
+  // Rule 1: high amount
   if (amount > 10000) {
     flags.push('HIGH_AMOUNT');
     riskScore += 40;
   }
+
+  // Rule 2: missing required fields
   if (!userId) {
     flags.push('MISSING_USER');
     riskScore += 30;
@@ -23,6 +31,27 @@ async function analyzeTransaction(transaction, requesterId) {
     riskScore += 20;
   }
 
+  // Rule 3: velocity check — too many transactions from the same device in a short window
+  if (deviceId) {
+    const windowStart = new Date(Date.now() - VELOCITY_WINDOW_MINUTES * 60 * 1000);
+    const recentCount = await prisma.fraudReport.count({
+      where: {
+        deviceId,
+        analyzedAt: { gte: windowStart },
+      },
+    });
+    if (recentCount >= VELOCITY_MAX_TRANSACTIONS) {
+      flags.push('VELOCITY_EXCEEDED');
+      riskScore += 40;
+    }
+  }
+
+  // Rule 4: suspicious location (high-risk country code)
+  if (location && HIGH_RISK_COUNTRIES.includes(location.toUpperCase())) {
+    flags.push('SUSPICIOUS_LOCATION');
+    riskScore += 30;
+  }
+
   riskScore = Math.min(riskScore, 100);
 
   const report = await prisma.fraudReport.create({
@@ -33,7 +62,7 @@ async function analyzeTransaction(transaction, requesterId) {
       deviceId: deviceId || null,
       riskScore,
       riskLevel: riskScore >= 70 ? 'HIGH' : riskScore >= 40 ? 'MEDIUM' : 'LOW',
-      flags,
+      flags: JSON.stringify(flags),
       analyzedBy: requesterId || null,
     },
   });
@@ -74,7 +103,11 @@ async function listReports({ page = 1, limit = 20, riskLevel, analyzedBy, startD
 }
 
 function formatReport(report) {
-  return report;
+  const flags = report.flags;
+  return {
+    ...report,
+    flags: Array.isArray(flags) ? flags : JSON.parse(flags),
+  };
 }
 
 module.exports = { analyzeTransaction, getReport, listReports };

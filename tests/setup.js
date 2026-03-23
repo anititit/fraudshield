@@ -1,8 +1,8 @@
 const { execSync } = require('child_process');
 
-// Run migrations against the test DB once before all suites
+// Apply migrations to the SQLite test DB before all suites
 beforeAll(() => {
-  execSync('npx prisma migrate deploy', {
+  execSync('npx prisma db push --schema=prisma/schema.test.prisma --skip-generate', {
     env: { ...process.env },
     stdio: 'pipe',
   });
