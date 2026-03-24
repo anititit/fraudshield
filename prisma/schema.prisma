@@ -33,6 +33,8 @@ model FraudReport {
   userId     String?
   cpf        String?  // Brazilian CPF (stored as 11 raw digits, no mask)
   cnpj       String?  // Brazilian CNPJ (stored as 14 raw digits, no mask)
+  pixKey     String?  // Pix key (normalized: raw digits for CPF/CNPJ, E.164 for phone, lowercase otherwise)
+  pixKeyType String?  // CPF | CNPJ | PHONE | EMAIL | EVP | UNKNOWN
   location   String?
   deviceId   String?
   riskScore  Int

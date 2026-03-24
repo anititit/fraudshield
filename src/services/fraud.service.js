@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const cpfValidator = require('../validators/cpf');
 const cnpjValidator = require('../validators/cnpj');
+const pixValidator = require('../validators/pix');
 const {
   VELOCITY_WINDOW_MINUTES,
   VELOCITY_MAX_TRANSACTIONS,
@@ -8,7 +9,7 @@ const {
 } = require('../config/fraudRules');
 
 async function analyzeTransaction(transaction, requesterId) {
-  const { amount, userId, cpf, cnpj, location, deviceId } = transaction;
+  const { amount, userId, cpf, cnpj, pixKey, transactionTime, location, deviceId } = transaction;
 
   const flags = [];
   let riskScore = 0;
@@ -97,6 +98,38 @@ async function analyzeTransaction(transaction, requesterId) {
     }
   }
 
+  // Rule 7: Pix suspicious patterns
+  let pixKeyNormalized = null;
+  let pixKeyType = null;
+  if (pixKey) {
+    const result = pixValidator.validateKey(pixKey);
+    pixKeyNormalized = result.normalizedKey;
+    pixKeyType = result.keyType;
+
+    if (!result.valid) {
+      flags.push('INVALID_PIX_KEY');
+      riskScore += 40;
+    }
+  }
+
+  // Pix pattern checks — applied whenever a pixKey is present
+  if (pixKey) {
+    const txDate = transactionTime ? new Date(transactionTime) : new Date();
+
+    if (pixValidator.isUnusualHour(txDate)) {
+      flags.push('PIX_UNUSUAL_HOUR');
+      riskScore += 20;
+    }
+    if (pixValidator.isStructuringAmount(amount)) {
+      flags.push('PIX_STRUCTURING');
+      riskScore += 35;
+    }
+    if (pixValidator.isRoundAmount(amount)) {
+      flags.push('PIX_ROUND_AMOUNT');
+      riskScore += 15;
+    }
+  }
+
   riskScore = Math.min(riskScore, 100);
 
   const report = await prisma.fraudReport.create({
@@ -105,6 +138,8 @@ async function analyzeTransaction(transaction, requesterId) {
       userId: userId || null,
       cpf: cpfDigits,
       cnpj: cnpjDigits,
+      pixKey: pixKeyNormalized,
+      pixKeyType: pixKeyType,
       location: location || null,
       deviceId: deviceId || null,
       riskScore,
