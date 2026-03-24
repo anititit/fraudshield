@@ -33,6 +33,7 @@ model FraudReport {
   amount     Float
   userId     String?
   cpf        String?
+  cnpj       String?
   location   String?
   deviceId   String?
   riskScore  Int

@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const cpfValidator = require('../validators/cpf');
+const cnpjValidator = require('../validators/cnpj');
 const {
   VELOCITY_WINDOW_MINUTES,
   VELOCITY_MAX_TRANSACTIONS,
@@ -7,7 +8,7 @@ const {
 } = require('../config/fraudRules');
 
 async function analyzeTransaction(transaction, requesterId) {
-  const { amount, userId, cpf, location, deviceId } = transaction;
+  const { amount, userId, cpf, cnpj, location, deviceId } = transaction;
 
   const flags = [];
   let riskScore = 0;
@@ -57,20 +58,41 @@ async function analyzeTransaction(transaction, requesterId) {
     cpfDigits = result.digits; // store clean digits (no mask)
 
     if (!result.valid) {
-      // Map each issue code to a flag + score
       if (result.issues.includes('INVALID_FORMAT')) {
         flags.push('INVALID_CPF_FORMAT');
         riskScore += 50;
       } else if (result.issues.includes('BLOCKED_SEQUENCE')) {
-        flags.push('INVALID_CPF_DIGITS'); // all-same is also a digit issue
+        flags.push('INVALID_CPF_DIGITS');
         riskScore += 50;
       } else if (result.issues.includes('INVALID_CHECK_DIGITS')) {
         flags.push('INVALID_CPF_DIGITS');
         riskScore += 50;
       }
     } else if (result.suspiciousPatterns.length > 0) {
-      // Valid CPF but risky pattern (sequential, low-entropy)
       flags.push('SUSPICIOUS_CPF');
+      riskScore += 25;
+    }
+  }
+
+  // Rule 6: CNPJ validation
+  let cnpjDigits = null;
+  if (cnpj) {
+    const result = cnpjValidator.validate(cnpj);
+    cnpjDigits = result.digits; // store clean digits (no mask)
+
+    if (!result.valid) {
+      if (result.issues.includes('INVALID_FORMAT')) {
+        flags.push('INVALID_CNPJ_FORMAT');
+        riskScore += 50;
+      } else if (result.issues.includes('BLOCKED_SEQUENCE')) {
+        flags.push('INVALID_CNPJ_DIGITS');
+        riskScore += 50;
+      } else if (result.issues.includes('INVALID_CHECK_DIGITS')) {
+        flags.push('INVALID_CNPJ_DIGITS');
+        riskScore += 50;
+      }
+    } else if (result.suspiciousPatterns.length > 0) {
+      flags.push('SUSPICIOUS_CNPJ');
       riskScore += 25;
     }
   }
@@ -82,6 +104,7 @@ async function analyzeTransaction(transaction, requesterId) {
       amount,
       userId: userId || null,
       cpf: cpfDigits,
+      cnpj: cnpjDigits,
       location: location || null,
       deviceId: deviceId || null,
       riskScore,
