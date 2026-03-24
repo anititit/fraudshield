@@ -35,6 +35,8 @@ model FraudReport {
   cnpj       String?  // Brazilian CNPJ (stored as 14 raw digits, no mask)
   pixKey     String?  // Pix key (normalized: raw digits for CPF/CNPJ, E.164 for phone, lowercase otherwise)
   pixKeyType String?  // CPF | CNPJ | PHONE | EMAIL | EVP | UNKNOWN
+  phone      String?  // Brazilian phone in E.164 format (+55DDXXXXXXXX)
+  phoneType  String?  // MOBILE | LANDLINE
   location   String?
   deviceId   String?
   riskScore  Int

@@ -2,6 +2,7 @@ const prisma = require('../config/prisma');
 const cpfValidator = require('../validators/cpf');
 const cnpjValidator = require('../validators/cnpj');
 const pixValidator = require('../validators/pix');
+const phoneValidator = require('../validators/phone');
 const {
   VELOCITY_WINDOW_MINUTES,
   VELOCITY_MAX_TRANSACTIONS,
@@ -9,7 +10,7 @@ const {
 } = require('../config/fraudRules');
 
 async function analyzeTransaction(transaction, requesterId) {
-  const { amount, userId, cpf, cnpj, pixKey, transactionTime, location, deviceId } = transaction;
+  const { amount, userId, cpf, cnpj, pixKey, transactionTime, phone, location, deviceId } = transaction;
 
   const flags = [];
   let riskScore = 0;
@@ -130,6 +131,31 @@ async function analyzeTransaction(transaction, requesterId) {
     }
   }
 
+  // Rule 8: Brazilian phone validation
+  let phoneE164 = null;
+  let phoneType = null;
+  if (phone) {
+    const result = phoneValidator.validate(phone);
+    phoneE164 = result.e164;
+    phoneType = result.type !== 'UNKNOWN' ? result.type : null;
+
+    if (!result.valid) {
+      if (result.issues.includes('INVALID_FORMAT')) {
+        flags.push('INVALID_PHONE_FORMAT');
+        riskScore += 30;
+      } else if (result.issues.includes('INVALID_DDD')) {
+        flags.push('INVALID_PHONE_DDD');
+        riskScore += 20;
+      } else if (result.issues.includes('INVALID_NUMBER')) {
+        flags.push('INVALID_PHONE_FORMAT');
+        riskScore += 30;
+      }
+    } else if (result.suspiciousPatterns.length > 0) {
+      flags.push('SUSPICIOUS_PHONE');
+      riskScore += 20;
+    }
+  }
+
   riskScore = Math.min(riskScore, 100);
 
   const report = await prisma.fraudReport.create({
@@ -140,6 +166,8 @@ async function analyzeTransaction(transaction, requesterId) {
       cnpj: cnpjDigits,
       pixKey: pixKeyNormalized,
       pixKeyType: pixKeyType,
+      phone: phoneE164,
+      phoneType: phoneType,
       location: location || null,
       deviceId: deviceId || null,
       riskScore,
