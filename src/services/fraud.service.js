@@ -3,6 +3,7 @@ const cpfValidator = require('../validators/cpf');
 const cnpjValidator = require('../validators/cnpj');
 const pixValidator = require('../validators/pix');
 const phoneValidator = require('../validators/phone');
+const crosscheck = require('../validators/crosscheck');
 const {
   VELOCITY_WINDOW_MINUTES,
   VELOCITY_MAX_TRANSACTIONS,
@@ -10,7 +11,7 @@ const {
 } = require('../config/fraudRules');
 
 async function analyzeTransaction(transaction, requesterId) {
-  const { amount, userId, cpf, cnpj, pixKey, transactionTime, phone, location, deviceId } = transaction;
+  const { amount, userId, cpf, cnpj, pixKey, transactionTime, phone, email, location, deviceId } = transaction;
 
   const flags = [];
   let riskScore = 0;
@@ -55,22 +56,23 @@ async function analyzeTransaction(transaction, requesterId) {
 
   // Rule 5: CPF validation
   let cpfDigits = null;
+  let cpfResult = null;
   if (cpf) {
-    const result = cpfValidator.validate(cpf);
-    cpfDigits = result.digits; // store clean digits (no mask)
+    cpfResult = cpfValidator.validate(cpf);
+    cpfDigits = cpfResult.digits; // store clean digits (no mask)
 
-    if (!result.valid) {
-      if (result.issues.includes('INVALID_FORMAT')) {
+    if (!cpfResult.valid) {
+      if (cpfResult.issues.includes('INVALID_FORMAT')) {
         flags.push('INVALID_CPF_FORMAT');
         riskScore += 50;
-      } else if (result.issues.includes('BLOCKED_SEQUENCE')) {
+      } else if (cpfResult.issues.includes('BLOCKED_SEQUENCE')) {
         flags.push('INVALID_CPF_DIGITS');
         riskScore += 50;
-      } else if (result.issues.includes('INVALID_CHECK_DIGITS')) {
+      } else if (cpfResult.issues.includes('INVALID_CHECK_DIGITS')) {
         flags.push('INVALID_CPF_DIGITS');
         riskScore += 50;
       }
-    } else if (result.suspiciousPatterns.length > 0) {
+    } else if (cpfResult.suspiciousPatterns.length > 0) {
       flags.push('SUSPICIOUS_CPF');
       riskScore += 25;
     }
@@ -134,26 +136,43 @@ async function analyzeTransaction(transaction, requesterId) {
   // Rule 8: Brazilian phone validation
   let phoneE164 = null;
   let phoneType = null;
+  let phoneResult = null;
   if (phone) {
-    const result = phoneValidator.validate(phone);
-    phoneE164 = result.e164;
-    phoneType = result.type !== 'UNKNOWN' ? result.type : null;
+    phoneResult = phoneValidator.validate(phone);
+    phoneE164 = phoneResult.e164;
+    phoneType = phoneResult.type !== 'UNKNOWN' ? phoneResult.type : null;
 
-    if (!result.valid) {
-      if (result.issues.includes('INVALID_FORMAT')) {
+    if (!phoneResult.valid) {
+      if (phoneResult.issues.includes('INVALID_FORMAT')) {
         flags.push('INVALID_PHONE_FORMAT');
         riskScore += 30;
-      } else if (result.issues.includes('INVALID_DDD')) {
+      } else if (phoneResult.issues.includes('INVALID_DDD')) {
         flags.push('INVALID_PHONE_DDD');
         riskScore += 20;
-      } else if (result.issues.includes('INVALID_NUMBER')) {
+      } else if (phoneResult.issues.includes('INVALID_NUMBER')) {
         flags.push('INVALID_PHONE_FORMAT');
         riskScore += 30;
       }
-    } else if (result.suspiciousPatterns.length > 0) {
+    } else if (phoneResult.suspiciousPatterns.length > 0) {
       flags.push('SUSPICIOUS_PHONE');
       riskScore += 20;
     }
+  }
+
+  // Rule 9: identity cross-check (email + geo consistency)
+  let emailNormalized = null;
+  if (email || cpf || phone) {
+    const { emailResult, flags: crossFlags, scoreIncrease } = crosscheck.analyzeIdentitySignals({
+      email,
+      cpfDigits: cpfResult ? cpfResult.digits : null,
+      cpfValid: cpfResult ? cpfResult.valid : false,
+      phoneDdd: phoneResult ? phoneResult.ddd : null,
+      phoneValid: phoneResult ? phoneResult.valid : false,
+    });
+
+    if (emailResult) emailNormalized = emailResult.normalizedEmail;
+    for (const f of crossFlags) flags.push(f);
+    riskScore += scoreIncrease;
   }
 
   riskScore = Math.min(riskScore, 100);
@@ -168,6 +187,7 @@ async function analyzeTransaction(transaction, requesterId) {
       pixKeyType: pixKeyType,
       phone: phoneE164,
       phoneType: phoneType,
+      email: emailNormalized,
       location: location || null,
       deviceId: deviceId || null,
       riskScore,

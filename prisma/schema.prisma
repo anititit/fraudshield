@@ -37,6 +37,7 @@ model FraudReport {
   pixKeyType String?  // CPF | CNPJ | PHONE | EMAIL | EVP | UNKNOWN
   phone      String?  // Brazilian phone in E.164 format (+55DDXXXXXXXX)
   phoneType  String?  // MOBILE | LANDLINE
+  email      String?  // normalized lowercase email
   location   String?
   deviceId   String?
   riskScore  Int

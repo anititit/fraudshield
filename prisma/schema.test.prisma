@@ -38,6 +38,7 @@ model FraudReport {
   pixKeyType String?
   phone      String?
   phoneType  String?
+  email      String?
   location   String?
   deviceId   String?
   riskScore  Int
