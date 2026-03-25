@@ -1,7 +1,9 @@
 const { Router } = require('express');
 const dashboardController = require('../controllers/dashboard.controller');
+const { apiLimiter } = require('../middlewares/rateLimit');
 
 const router = Router();
+router.use(apiLimiter);
 
 // GET /api/dashboard — consolidated: summary + by-user + timeline
 router.get('/', dashboardController.all);

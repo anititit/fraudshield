@@ -1,15 +1,16 @@
 const { Router } = require('express');
 const fraudController = require('../controllers/fraud.controller');
+const { analyzeLimiter, apiLimiter } = require('../middlewares/rateLimit');
 
 const router = Router();
 
-// POST /api/fraud/analyze - analyze a transaction for fraud
-router.post('/analyze', fraudController.analyze);
+// POST /api/fraud/analyze — strict limit (expensive, Brazilian validators run here)
+router.post('/analyze', analyzeLimiter, fraudController.analyze);
 
-// GET /api/fraud/reports - list all reports (supports ?page, ?limit, ?riskLevel)
-router.get('/reports', fraudController.listReports);
+// GET /api/fraud/reports — general API limit
+router.get('/reports', apiLimiter, fraudController.listReports);
 
-// GET /api/fraud/report/:transactionId - get fraud report for a transaction
-router.get('/report/:transactionId', fraudController.getReport);
+// GET /api/fraud/report/:transactionId — general API limit
+router.get('/report/:transactionId', apiLimiter, fraudController.getReport);
 
 module.exports = router;
